@@ -12,7 +12,9 @@ libraryDependencies ++= Seq(
   "com.comcast" %% "ip4s-cats" % "1.2.1",
   "org.scodec" %% "scodec-stream" % "2.0.0-SNAPSHOT",
   "org.jline" % "jline" % "3.12.1",
-  "com.monovore" %% "decline" % "0.7.0-M0"
+  "com.monovore" %% "decline" % "0.7.0-M0",
+  "dev.profunktor" %% "redis4cats-effects" % "0.8.3",
+  "dev.profunktor" %% "redis4cats-log4cats" % "0.8.3"
 )
 
 fork in run := true

@@ -1,6 +1,7 @@
 package fs2chat
 package server
 
+import cache.MsgCounter
 import cats.effect.{Blocker, ExitCode, IO, IOApp}
 import cats.implicits._
 import com.comcast.ip4s._
@@ -25,7 +26,9 @@ object ServerApp extends IOApp {
           .use { blocker =>
             SocketGroup[IO](blocker).use { socketGroup =>
               Slf4jLogger.create[IO].flatMap { implicit logger =>
-                Server.start[IO](socketGroup, port).compile.drain
+                MsgCounter.create[IO].use { msgCounter =>
+                  Server.start[IO](socketGroup, port, msgCounter).compile.drain
+                }
               }
             }
           }

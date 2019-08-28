@@ -1,6 +1,7 @@
 package fs2chat
 package server
 
+import cache.MsgCounter
 import cats.effect.concurrent.Ref
 import cats.effect.{Concurrent, ContextShift, Sync}
 import cats.implicits._
@@ -79,7 +80,8 @@ object Server {
   }
 
   def start[F[_]: Concurrent: ContextShift: Logger](socketGroup: SocketGroup,
-                                                    port: Port) =
+                                                    port: Port,
+                                                    msgCounter: MsgCounter[F]) =
     Stream.eval_(Logger[F].info(s"Starting server on port $port")) ++
       Stream
         .eval(Clients[F])
@@ -101,7 +103,7 @@ object Server {
                     .bracket(ConnectedClient[F](clientSocket).flatTap(
                       clients.register))(unregisterClient)
                     .flatMap { client =>
-                      handleClient[F](clients, client, clientSocket)
+                      handleClient[F](clients, client, clientSocket, msgCounter)
                     }
                 }
                 .scope
@@ -112,12 +114,16 @@ object Server {
   private def handleClient[F[_]: Concurrent: Logger](
       clients: Clients[F],
       clientState: ConnectedClient[F],
-      clientSocket: Socket[F]): Stream[F, Nothing] = {
+      clientSocket: Socket[F],
+      msgCounter: MsgCounter[F]): Stream[F, Nothing] = {
     logNewClient(clientState, clientSocket) ++
       Stream.eval_(
         clientState.messageSocket.write1(
           Protocol.ServerCommand.Alert("Welcome to FS2 Chat!"))) ++
-      processIncoming(clients, clientState.id, clientState.messageSocket)
+      processIncoming(clients,
+                      clientState.id,
+                      msgCounter,
+                      clientState.messageSocket)
   }.handleErrorWith {
     case _: UserQuit =>
       Stream.eval_(
@@ -137,6 +143,7 @@ object Server {
   private def processIncoming[F[_]](
       clients: Clients[F],
       clientId: UUID,
+      msgCounter: MsgCounter[F],
       messageSocket: MessageSocket[F,
                                    Protocol.ClientCommand,
                                    Protocol.ServerCommand])(
@@ -153,7 +160,17 @@ object Server {
           alertIfAltered *> messageSocket.write1(
             Protocol.ServerCommand.SetUsername(nameToSet)) *>
             clients.broadcast(
-              Protocol.ServerCommand.Alert(s"$nameToSet connected."))
+              Protocol.ServerCommand.Alert(s"$nameToSet connected.")) *>
+            msgCounter
+              .get(nameToSet)
+              .flatMap {
+                case None =>
+                  clients.broadcast(Protocol.ServerCommand.Alert(
+                    s"$nameToSet is joining the chat for the first time ever!"))
+                case Some(n) =>
+                  clients.broadcast(Protocol.ServerCommand.Alert(
+                    s"$nameToSet has previously sent #$n messages."))
+              }
         }
       case Protocol.ClientCommand.SendMessage(message) =>
         if (message.startsWith("/")) {
@@ -180,7 +197,7 @@ object Server {
                   F.unit // Ignore messages sent before username assignment
                 case Some(username) =>
                   val cmd = Protocol.ServerCommand.Message(username, message)
-                  clients.broadcast(cmd)
+                  clients.broadcast(cmd) *> msgCounter.incr(username)
               }
             case None => F.unit
           }

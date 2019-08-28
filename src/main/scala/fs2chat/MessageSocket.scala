@@ -25,9 +25,7 @@ object MessageSocket {
       outEncoder: Encoder[Out],
       outputBound: Int
   ): F[MessageSocket[F, In, Out]] =
-    for {
-      outgoing <- Queue.bounded[F, Out](outputBound)
-    } yield
+    Queue.bounded[F, Out](outputBound).map { outgoing =>
       new MessageSocket[F, In, Out] {
         def read: Stream[F, In] = {
           val readSocket = socket
@@ -42,4 +40,5 @@ object MessageSocket {
         }
         def write1(out: Out): F[Unit] = outgoing.enqueue1(out)
       }
+    }
 }

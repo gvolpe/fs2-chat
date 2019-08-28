@@ -9,3 +9,11 @@ To start the server application, run `sbt "runMain fs2chat.server.ServerApp"`. T
 To start the client application, run `sbt "runMain fs2chat.client.ClientApp --username <desiredUsername>"`. This will start a client that attempts to connect to 5555 on localhost. Run `sbt "runMain fs2chat.client.ClientApp --address <serverIp> --username <desiredUsername>"` if running the server on a different host.
 
 Alternatively, run `sbt universal:stage` to build client and server apps under `target/universal/stage/bin`. Then run `./target/universal/stage/bin/server-app` to start the server and `./target/universal/stage/bin/client-app --username <desiredUsername>` to start a client.
+
+## Requirements
+
+A Redis instance needs to be running (used to persist messages count per user). Get started quickly with:
+
+```
+docker run -p 6379:6379 redis:5.0.0
+```
